@@ -8,11 +8,11 @@ export enum SymbolType {
 }
 
 export enum ReelState {
-  IDLE,
-  SPINNING_ACCEL,
-  SPINNING_CONST,
-  STOPPING,
-  RESULT,
+  IDLE, // Trạng thái nghỉ/chờ
+  SPINNING_ACCEL, // Đang quay - tăng tốc
+  SPINNING_CONST, // Đang quay - tốc độ đều
+  STOPPING, // Đang dừng lại
+  RESULT, // Đã dừng - hiển thị kết quả
 }
 
 export interface SymbolConfig {
@@ -27,43 +27,43 @@ export const SYMBOL_CONFIGS: SymbolConfig[] = [
   {
     id: SymbolType.CHERRY,
     name: "Cherry",
-    normalSprite: "sprites/symbols/cherry",
-    blurredSprite: "sprites/symbols/cherry_blur",
+    normalSprite: "symbols/cherry/spriteFrame",
+    blurredSprite: "symbols/cherry_blur/spriteFrame",
     value: 5,
   },
   {
     id: SymbolType.LEMON,
     name: "Lemon",
-    normalSprite: "sprites/symbols/lemon",
-    blurredSprite: "sprites/symbols/lemon_blur",
+    normalSprite: "symbols/lemon/spriteFrame",
+    blurredSprite: "symbols/lemon_blur/spriteFrame",
     value: 5,
   },
   {
     id: SymbolType.BAR,
     name: "Bar",
-    normalSprite: "sprites/symbols/bar",
-    blurredSprite: "sprites/symbols/bar_blur",
+    normalSprite: "symbols/bar/spriteFrame",
+    blurredSprite: "symbols/bar_blur/spriteFrame",
     value: 10,
   },
   {
     id: SymbolType.BELL,
     name: "Bell",
-    normalSprite: "sprites/symbols/bell",
-    blurredSprite: "sprites/symbols/bell_blur",
+    normalSprite: "symbols/bell/spriteFrame",
+    blurredSprite: "symbols/bell_blur/spriteFrame",
     value: 15,
   },
   {
     id: SymbolType.SEVEN,
     name: "Seven",
-    normalSprite: "sprites/symbols/seven",
-    blurredSprite: "sprites/symbols/seven_blur",
+    normalSprite: "symbols/seven/spriteFrame",
+    blurredSprite: "symbols/seven_blur/spriteFrame",
     value: 20,
   },
   {
     id: SymbolType.WILD,
     name: "Wild",
-    normalSprite: "sprites/symbols/wild",
-    blurredSprite: "sprites/symbols/wild_blur",
+    normalSprite: "symbols/wild/spriteFrame",
+    blurredSprite: "symbols/wild_blur/spriteFrame",
     value: 50,
   },
 ];

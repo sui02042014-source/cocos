@@ -19,17 +19,23 @@ export class Reel extends Component {
   private symbols: Node[] = [];
   private speedMultiplier: number = 1;
   private activeTween: Tween<Node> | null = null;
+  private isBlurred: boolean = false;
 
   private tempPos: Vec3 = new Vec3();
 
-  private readonly ACCELERATION = 300;
-  private readonly MAX_SPEED = 800;
-
-  private readonly RESET_Y_THRESHOLD = -190;
-  private readonly RESET_Y_POSITION = 380;
+  private readonly ACCELERATION = 100;
+  private readonly MAX_SPEED = 1000;
 
   private readonly MIN_SPEED_MULTIPLIER = 0.4;
   private readonly MAX_SPEED_MULTIPLIER = 1.2;
+
+  private get symbolHeight(): number {
+    return this.symbolContainer ? this.symbolContainer.symbolSize.height : 95;
+  }
+
+  private get RESET_Y_THRESHOLD(): number {
+    return -this.symbolHeight * 3;
+  }
 
   public isSpinning(): boolean {
     return (
@@ -61,7 +67,28 @@ export class Reel extends Component {
       Math.random() * (this.MAX_SPEED_MULTIPLIER - this.MIN_SPEED_MULTIPLIER);
 
     this.currentSpeed = 0;
+    this.isBlurred = false;
     this.currentState = ReelState.SPINNING_ACCEL;
+  }
+
+  private applyBlurEffect() {
+    for (const node of this.symbols) {
+      if (!node || !node.isValid) continue;
+      const symbolComp = node.getComponent(Symbol);
+      if (symbolComp) {
+        symbolComp.loadBlurredSprite();
+      }
+    }
+  }
+
+  private removeBlurEffect() {
+    for (const node of this.symbols) {
+      if (!node || !node.isValid) continue;
+      const symbolComp = node.getComponent(Symbol);
+      if (symbolComp) {
+        symbolComp.loadNormalSprite();
+      }
+    }
   }
 
   update(deltaTime: number) {
@@ -76,6 +103,11 @@ export class Reel extends Component {
         if (this.currentSpeed >= this.MAX_SPEED) {
           this.currentSpeed = this.MAX_SPEED;
           this.currentState = ReelState.SPINNING_CONST;
+
+          if (!this.isBlurred) {
+            this.applyBlurEffect();
+            this.isBlurred = true;
+          }
         }
         break;
 
@@ -102,7 +134,10 @@ export class Reel extends Component {
       const newY = pos.y - scrollDistance;
 
       if (newY < this.RESET_Y_THRESHOLD) {
-        this.setNodeYPosition(node, this.RESET_Y_POSITION);
+        const highestY = this.getHighestSymbolY();
+        const resetY = highestY + this.getSymbolSpacing();
+
+        this.setNodeYPosition(node, resetY);
 
         const newSymbolID = getRandomSymbolID();
         const symbolComp = node.getComponent(Symbol);
@@ -113,6 +148,22 @@ export class Reel extends Component {
         this.setNodeYPosition(node, newY);
       }
     }
+  }
+
+  private getHighestSymbolY(): number {
+    let highestY = this.RESET_Y_THRESHOLD;
+
+    for (const node of this.symbols) {
+      if (node && node.isValid && node.position.y > highestY) {
+        highestY = node.position.y;
+      }
+    }
+
+    return highestY;
+  }
+
+  private getSymbolSpacing(): number {
+    return this.symbolContainer ? this.symbolContainer.symbolSpacing : 115;
   }
 
   private setNodeYPosition(node: Node, newY: number) {
@@ -135,6 +186,11 @@ export class Reel extends Component {
     this.currentSpeed = 0;
     this.targetSymbolID = -1;
     this.stopCallback = null;
+
+    if (this.isBlurred) {
+      this.removeBlurEffect();
+      this.isBlurred = false;
+    }
   }
 
   onDestroy() {

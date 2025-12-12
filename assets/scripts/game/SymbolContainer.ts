@@ -1,18 +1,24 @@
-import { _decorator, Component, Node } from "cc";
+import { _decorator, Component, Node, Sprite, UITransform, Size } from "cc";
 const { ccclass, property } = _decorator;
 
 import { Symbol } from "./Symbol";
+import { getRandomSymbolID } from "../utils/utils";
+import { SYMBOL_CONFIGS } from "../configs/symbolConfigs";
 
 @ccclass("SymbolContainer")
 export class SymbolContainer extends Component {
-  @property([Node])
   public symbolNodes: Node[] = [];
 
-  public symbolSpacing: number = 95;
+  @property(Number)
+  public symbolSpacing: number = 115;
+
+  @property(Size)
+  public symbolSize: Size = new Size(80, 95);
 
   private symbolComponents: Symbol[] = [];
 
   onLoad() {
+    this.createSymbolsFromConfig();
     this.cacheSymbolComponents();
   }
 
@@ -22,6 +28,64 @@ export class SymbolContainer extends Component {
 
   public initialize() {
     this.initializeSymbolPositions();
+  }
+
+  private createSymbolsFromConfig() {
+    this.clearSymbols();
+
+    const symbolCount = SYMBOL_CONFIGS.length;
+
+    const shuffledIDs = this.createShuffledSymbolIDs(symbolCount);
+
+    for (let i = 0; i < symbolCount; i++) {
+      const symbolNode = this.createSymbolNode(i);
+
+      symbolNode.setParent(this.node);
+      this.symbolNodes.push(symbolNode);
+
+      const symbolComp = symbolNode.getComponent(Symbol);
+      if (symbolComp) {
+        symbolComp.symbolID = shuffledIDs[i];
+      }
+    }
+  }
+
+  private createShuffledSymbolIDs(count: number): number[] {
+    const ids: number[] = [];
+    for (let i = 0; i < count; i++) {
+      ids.push(i);
+    }
+
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+
+    return ids;
+  }
+
+  private createSymbolNode(index: number): Node {
+    const node = new Node(`Symbol${index}`);
+
+    const uiTransform = node.addComponent(UITransform);
+    uiTransform.setContentSize(this.symbolSize);
+
+    const sprite = node.addComponent(Sprite);
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+
+    node.addComponent(Symbol);
+
+    return node;
+  }
+
+  private clearSymbols() {
+    for (const node of this.symbolNodes) {
+      if (node && node.isValid) {
+        node.destroy();
+      }
+    }
+    this.symbolNodes = [];
+    this.symbolComponents = [];
   }
 
   private cacheSymbolComponents() {
@@ -59,19 +123,6 @@ export class SymbolContainer extends Component {
       const currentPos = node.position;
       node.setPosition(currentPos.x, positions[i], currentPos.z);
     }
-  }
-
-  public findSymbolByID(symbolID: number): Symbol | null {
-    if (!Number.isInteger(symbolID) || symbolID < 0) {
-      return null;
-    }
-
-    for (const symbolComp of this.symbolComponents) {
-      if (symbolComp.symbolID === symbolID) {
-        return symbolComp;
-      }
-    }
-    return null;
   }
 
   public getSymbols(): Node[] {
