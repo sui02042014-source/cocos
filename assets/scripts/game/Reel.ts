@@ -23,8 +23,8 @@ export class Reel extends Component {
 
   private tempPos: Vec3 = new Vec3();
 
-  private readonly ACCELERATION = 200;
-  private readonly MAX_SPEED = 800;
+  private readonly ACCELERATION = 500;
+  private readonly MAX_SPEED = 1500;
 
   private readonly MIN_SPEED_MULTIPLIER = 0.4;
   private readonly MAX_SPEED_MULTIPLIER = 1.2;
@@ -103,7 +103,6 @@ export class Reel extends Component {
           this.currentSpeed = this.MAX_SPEED;
           this.currentState = ReelState.SPINNING_CONST;
 
-          // Apply blur khi đạt vận tốc tối đa
           if (!this.isBlurred) {
             this.applyBlurEffect();
             this.isBlurred = true;
@@ -143,6 +142,10 @@ export class Reel extends Component {
         const symbolComp = node.getComponent(Symbol);
         if (symbolComp) {
           symbolComp.symbolID = newSymbolID;
+
+          if (this.isBlurred) {
+            symbolComp.loadBlurredSprite();
+          }
         }
       } else {
         this.setNodeYPosition(node, newY);
@@ -187,7 +190,10 @@ export class Reel extends Component {
     this.targetSymbolID = -1;
     this.stopCallback = null;
 
-    this.removeBlurEffect();
+    if (this.isBlurred) {
+      this.removeBlurEffect();
+      this.isBlurred = false;
+    }
   }
 
   onDestroy() {
