@@ -11,8 +11,4 @@ export class GameManager extends Component {
 
   @property(Node)
   private pauseButton: Node = null;
-
-  start() {}
-
-  update(deltaTime: number) {}
 }

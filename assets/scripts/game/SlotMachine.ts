@@ -2,6 +2,7 @@ import { _decorator, Component, Node, Button } from "cc";
 const { ccclass, property } = _decorator;
 
 import { ReelGroup } from "./ReelGroup";
+import { getRandomSymbolID } from "../utils/utils";
 
 @ccclass("SlotMachine")
 export class SlotMachine extends Component {
@@ -11,71 +12,99 @@ export class SlotMachine extends Component {
   @property(Node)
   spinButton: Node = null;
 
+  @property(Number)
+  spinDuration: number = 1.0;
+
+  private buttonComponent: Button = null;
+  private currentResult: number[] = [];
+
   start() {
     this.initializeSpinButton();
   }
 
   private initializeSpinButton() {
-    if (!this.spinButton) {
-      return;
-    }
+    if (!this.spinButton) return;
 
-    const button = this.spinButton.getComponent(Button);
-    if (button) {
-      button.node.on(Button.EventType.CLICK, this.onSpinButtonClicked, this);
-    }
+    this.buttonComponent = this.spinButton.getComponent(Button);
+    if (!this.buttonComponent) return;
+
+    this.buttonComponent.node.on(
+      Button.EventType.CLICK,
+      this.onSpinButtonClicked,
+      this
+    );
   }
 
   private onSpinButtonClicked() {
-    if (!this.reelGroup) {
-      return;
+    if (!this.reelGroup?.isSpinning()) {
+      this.startSpin();
     }
-
-    if (this.reelGroup.isSpinning()) {
-      return;
-    }
-
-    this.startSpin();
   }
 
-  public startSpin() {
-    if (!this.reelGroup) {
-      return;
-    }
+  public startSpin(targetSymbols?: number[]) {
+    if (!this.reelGroup) return;
 
     this.setButtonEnabled(false);
 
+    this.currentResult = targetSymbols || this.generateRandomResult();
+
     this.reelGroup.spin();
+
+    this.scheduleOnce(() => {
+      this.stopSpin();
+    }, this.spinDuration);
+  }
+
+  private generateRandomResult(): number[] {
+    const reelCount = this.reelGroup.reelNodes.length;
+    return Array.from({ length: reelCount }, () => getRandomSymbolID());
+  }
+
+  private stopSpin() {
+    if (!this.reelGroup) return;
+
+    this.reelGroup.stop(this.currentResult, () => {
+      this.onSpinComplete();
+    });
+  }
+
+  private onSpinComplete() {
+    this.setButtonEnabled(true);
+  }
+
+  public setResult(targetSymbols: number[]) {
+    this.currentResult = targetSymbols;
+  }
+
+  public getResult(): number[] {
+    return [...this.currentResult];
   }
 
   private setButtonEnabled(enabled: boolean) {
-    if (!this.spinButton) {
-      return;
-    }
-
-    const button = this.spinButton.getComponent(Button);
-    if (button) {
-      button.interactable = enabled;
+    if (this.buttonComponent) {
+      this.buttonComponent.interactable = enabled;
     }
   }
 
   public isSpinning(): boolean {
-    return this.reelGroup ? this.reelGroup.isSpinning() : false;
+    return this.reelGroup?.isSpinning() ?? false;
   }
 
   public reset() {
-    if (this.reelGroup) {
-      this.reelGroup.reset();
-    }
+    this.unscheduleAllCallbacks();
+    this.reelGroup?.reset();
     this.setButtonEnabled(true);
+    this.currentResult = [];
   }
 
   onDestroy() {
-    if (this.spinButton) {
-      const button = this.spinButton.getComponent(Button);
-      if (button) {
-        button.node.off(Button.EventType.CLICK, this.onSpinButtonClicked, this);
-      }
+    this.unscheduleAllCallbacks();
+    if (this.buttonComponent) {
+      this.buttonComponent.node.off(
+        Button.EventType.CLICK,
+        this.onSpinButtonClicked,
+        this
+      );
     }
   }
 }

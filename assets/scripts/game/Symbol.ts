@@ -23,11 +23,11 @@ export class Symbol extends Component {
   }
 
   public set symbolID(value: number) {
-    if (!Number.isInteger(value)) {
-      return;
-    }
-
-    if (value < 0 || value >= SYMBOL_CONFIGS.length) {
+    if (
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value >= SYMBOL_CONFIGS.length
+    ) {
       return;
     }
 
@@ -37,11 +37,9 @@ export class Symbol extends Component {
 
   private loadSpriteFromConfig() {
     const config = getSymbolConfig(this._symbolID);
-    if (!config) {
-      return;
+    if (config) {
+      this.loadSprite(config.normalSprite);
     }
-
-    this.loadSprite(config.normalSprite);
   }
 
   private loadSprite(spritePath: string) {
@@ -49,17 +47,10 @@ export class Symbol extends Component {
       this.spriteComponent = this.node.getComponent(Sprite);
     }
 
-    if (!this.spriteComponent) {
-      return;
-    }
+    if (!this.spriteComponent) return;
 
     resources.load(spritePath, SpriteFrame, (err, spriteFrame) => {
-      if (err) {
-        console.error(`Failed to load sprite: ${spritePath}`, err);
-        return;
-      }
-
-      if (this.spriteComponent) {
+      if (!err && this.spriteComponent) {
         this.spriteComponent.spriteFrame = spriteFrame;
       }
     });
@@ -67,19 +58,15 @@ export class Symbol extends Component {
 
   public loadBlurredSprite() {
     const config = getSymbolConfig(this._symbolID);
-    if (!config) {
-      return;
+    if (config) {
+      this.loadSprite(config.blurredSprite);
     }
-
-    this.loadSprite(config.blurredSprite);
   }
 
   public loadNormalSprite() {
     const config = getSymbolConfig(this._symbolID);
-    if (!config) {
-      return;
+    if (config) {
+      this.loadSprite(config.normalSprite);
     }
-
-    this.loadSprite(config.normalSprite);
   }
 }

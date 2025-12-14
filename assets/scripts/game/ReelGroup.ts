@@ -1,5 +1,6 @@
 import { _decorator, Component, Node } from "cc";
 import { Reel } from "./Reel";
+import { getRandomSymbolID } from "../utils/utils";
 const { ccclass, property } = _decorator;
 
 @ccclass("ReelGroup")
@@ -7,9 +8,13 @@ export class ReelGroup extends Component {
   @property([Node])
   reelNodes: Node[] = [];
 
-  reels: Reel[] = [];
+  @property(Number)
+  stopDelay: number = 0.3;
 
+  private reels: Reel[] = [];
   private _isSpinning: boolean = false;
+  private stoppedReelsCount: number = 0;
+  private stopCallback: (() => void) | null = null;
 
   isSpinning(): boolean {
     return this._isSpinning;
@@ -20,41 +25,67 @@ export class ReelGroup extends Component {
   }
 
   private initializeReels() {
-    this.reels = [];
-    for (let i = 0; i < this.reelNodes.length; i++) {
-      const node = this.reelNodes[i];
-      if (!node) {
-        continue;
-      }
-
-      const reel = node.getComponent(Reel);
-      if (reel) {
-        this.reels.push(reel);
-      }
-    }
+    this.reels = this.reelNodes
+      .filter((node) => node !== null)
+      .map((node) => node.getComponent(Reel))
+      .filter((reel) => reel !== null);
   }
 
   spin() {
-    if (this._isSpinning) {
-      return;
-    }
-
-    if (this.reels.length === 0) {
-      return;
-    }
+    if (this._isSpinning || this.reels.length === 0) return;
 
     this._isSpinning = true;
+    this.stoppedReelsCount = 0;
+    this.reels.forEach((reel) => reel.spin());
+  }
 
+  public stop(targetSymbols: number[], callback?: () => void) {
+    if (!this._isSpinning) return;
+
+    this.stopCallback = callback || null;
+    this.stoppedReelsCount = 0;
+
+    const symbols = this.normalizeTargetSymbols(targetSymbols);
+
+    this.reels.forEach((reel, index) => {
+      const delay = index * this.stopDelay;
+      this.scheduleOnce(() => {
+        reel.stop(symbols[index], () => this.onReelStopped());
+      }, delay);
+    });
+  }
+
+  private normalizeTargetSymbols(targetSymbols: number[]): number[] {
+    const result: number[] = [];
     for (let i = 0; i < this.reels.length; i++) {
-      this.reels[i].spin();
+      if (i < targetSymbols.length && targetSymbols[i] >= 0) {
+        result.push(targetSymbols[i]);
+      } else {
+        result.push(getRandomSymbolID());
+      }
+    }
+    return result;
+  }
+
+  private onReelStopped() {
+    this.stoppedReelsCount++;
+
+    if (this.stoppedReelsCount >= this.reels.length) {
+      this._isSpinning = false;
+
+      if (this.stopCallback) {
+        const callback = this.stopCallback;
+        this.stopCallback = null;
+        callback();
+      }
     }
   }
 
   reset() {
+    this.unscheduleAllCallbacks();
     this._isSpinning = false;
-
-    for (let i = 0; i < this.reels.length; i++) {
-      this.reels[i].reset();
-    }
+    this.stoppedReelsCount = 0;
+    this.stopCallback = null;
+    this.reels.forEach((reel) => reel.reset());
   }
 }

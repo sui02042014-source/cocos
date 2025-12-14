@@ -1,14 +1,5 @@
-import { _decorator, Component, Node } from 'cc';
-const { ccclass, property } = _decorator;
+import { _decorator, Component } from "cc";
+const { ccclass } = _decorator;
 
-@ccclass('PersistRoot')
-export class PersistRoot extends Component {
-    start() {
-
-    }
-
-    update(deltaTime: number) {
-        
-    }
-}
-
+@ccclass("PersistRoot")
+export class PersistRoot extends Component {}

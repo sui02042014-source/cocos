@@ -8,11 +8,11 @@ export enum SymbolType {
 }
 
 export enum ReelState {
-  IDLE, // Trạng thái nghỉ/chờ
-  SPINNING_ACCEL, // Đang quay - tăng tốc
-  SPINNING_CONST, // Đang quay - tốc độ đều
-  STOPPING, // Đang dừng lại
-  RESULT, // Đã dừng - hiển thị kết quả
+  IDLE,
+  SPINNING_ACCEL,
+  SPINNING_CONST,
+  STOPPING,
+  RESULT,
 }
 
 export interface SymbolConfig {

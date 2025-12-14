@@ -14,8 +14,4 @@ export class MainMenu extends Component {
 
   @property(Node)
   private paytableButton: Node = null;
-
-  start() {}
-
-  update(deltaTime: number) {}
 }

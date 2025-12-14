@@ -8,8 +8,4 @@ export class LoadingController extends Component {
 
   @property(Node)
   private progressFill: Node = null;
-
-  start() {}
-
-  update(deltaTime: number) {}
 }
