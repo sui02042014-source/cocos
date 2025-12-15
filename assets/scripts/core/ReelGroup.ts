@@ -45,7 +45,7 @@ export class ReelGroup extends Component {
     this.stopCallback = callback || null;
     this.stoppedReelsCount = 0;
 
-    const symbols = this.normalizeTargetSymbols(targetSymbols);
+    const symbols = this.normalizeTargetSymbols([1, 2, 3]);
 
     this.reels.forEach((reel, index) => {
       const delay = index * this.stopDelay;

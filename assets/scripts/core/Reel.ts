@@ -1,10 +1,24 @@
-import { _decorator, Component, Node, tween, Vec3, Tween } from "cc";
+import { _decorator, Component, Node } from "cc";
 const { ccclass, property } = _decorator;
 
 import { SymbolContainer } from "./SymbolContainer";
-import { Symbol } from "./Symbol";
 import { ReelState } from "../configs/symbolConfigs";
-import { getRandomSymbolID } from "../utils/utils";
+import { ReelPhysics } from "./ReelPhysics";
+import { ReelStateMachine } from "./ReelStateMachine";
+import { SymbolPositionManager } from "./SymbolPositionManager";
+import { SymbolEffectManager } from "./SymbolEffectManager";
+import { ReelAnimator } from "./ReelAnimator";
+
+const REEL_CONFIG = {
+  ACCELERATION: 800,
+  MAX_SPEED: 1500,
+  MIN_SPEED_MULTIPLIER: 0.4,
+  MAX_SPEED_MULTIPLIER: 1.2,
+  DECELERATION: 800,
+  MIN_STOP_SPEED: 100,
+  BOUNCE_DISTANCE: 30,
+  BOUNCE_DURATION: 0.3,
+};
 
 @ccclass("Reel")
 export class Reel extends Component {
@@ -13,287 +27,189 @@ export class Reel extends Component {
 
   public targetSymbolID: number = -1;
 
-  private currentState: ReelState = ReelState.IDLE;
-  private currentSpeed: number = 0;
-  private stopCallback: (() => void) | null = null;
+  private physics: ReelPhysics;
+  private stateMachine: ReelStateMachine;
+  private positionManager: SymbolPositionManager;
+  private effectManager: SymbolEffectManager;
+  private animator: ReelAnimator;
+
   private symbols: Node[] = [];
-  private speedMultiplier: number = 1;
-  private activeTween: Tween<Node> | null = null;
-  private isBlurred: boolean = false;
-  private tempPos: Vec3 = new Vec3();
-  private targetSymbolNode: Node | null = null;
+  private stopCallback: (() => void) | null = null;
   private isStopRequested: boolean = false;
+  private targetSymbolNode: Node | null = null;
 
-  private readonly ACCELERATION = 800;
-  private readonly MAX_SPEED = 1500;
-  private readonly MIN_SPEED_MULTIPLIER = 0.4;
-  private readonly MAX_SPEED_MULTIPLIER = 1.2;
-  private readonly DECELERATION = 800;
-  private readonly MIN_STOP_SPEED = 100;
-  private readonly BOUNCE_DISTANCE = 30;
-  private readonly BOUNCE_DURATION = 0.3;
-
-  private get symbolHeight(): number {
-    return this.symbolContainer?.symbolSize.height ?? 95;
-  }
-
-  private get RESET_Y_THRESHOLD(): number {
-    return -this.symbolHeight * 3;
-  }
-
-  public isSpinning(): boolean {
-    return (
-      this.currentState !== ReelState.IDLE &&
-      this.currentState !== ReelState.RESULT
-    );
+  onLoad() {
+    this.initializeComponents();
   }
 
   start() {
     if (this.symbolContainer) {
       this.symbols = this.symbolContainer.getSymbols();
+      this.positionManager.setSymbols(this.symbols);
+      this.effectManager.setSymbols(this.symbols);
     }
   }
 
-  spin() {
-    if (
-      this.isSpinning() ||
-      !this.symbolContainer ||
-      this.symbols.length === 0
-    ) {
+  private initializeComponents(): void {
+    const symbolHeight = this.symbolContainer?.symbolSize.height ?? 95;
+    const symbolSpacing = this.symbolContainer?.symbolSpacing ?? 115;
+
+    this.physics = new ReelPhysics(REEL_CONFIG);
+    this.stateMachine = new ReelStateMachine();
+    this.positionManager = new SymbolPositionManager(
+      [],
+      symbolHeight,
+      symbolSpacing
+    );
+    this.effectManager = new SymbolEffectManager([]);
+    this.animator = new ReelAnimator(this.symbolContainer?.node, {
+      BOUNCE_DISTANCE: REEL_CONFIG.BOUNCE_DISTANCE,
+      BOUNCE_DURATION: REEL_CONFIG.BOUNCE_DURATION,
+    });
+  }
+
+  public isSpinning(): boolean {
+    return this.stateMachine.isSpinning();
+  }
+
+  public spin(): void {
+    if (!this.canSpin()) {
       return;
     }
 
-    this.stopActiveTween();
-    this.targetSymbolID = -1;
-    this.isStopRequested = false;
-    this.targetSymbolNode = null;
+    this.animator.stopAllTweens();
+    this.resetSpinState();
 
-    this.speedMultiplier =
-      this.MIN_SPEED_MULTIPLIER +
-      Math.random() * (this.MAX_SPEED_MULTIPLIER - this.MIN_SPEED_MULTIPLIER);
-
-    this.currentSpeed = 0;
-    this.currentState = ReelState.SPINNING_ACCEL;
+    this.physics.randomizeSpeedMultiplier();
+    this.physics.reset();
+    this.stateMachine.setState(ReelState.SPINNING_ACCEL);
   }
 
-  public stop(targetSymbolID: number, callback?: () => void) {
-    if (!this.isSpinning()) return;
+  public stop(targetSymbolID: number, callback?: () => void): void {
+    if (!this.stateMachine.canStop()) return;
 
     this.targetSymbolID = targetSymbolID;
     this.stopCallback = callback || null;
     this.isStopRequested = true;
 
-    if (this.currentState === ReelState.SPINNING_CONST) {
-      this.currentState = ReelState.STOPPING;
+    if (this.stateMachine.isConstantSpeed()) {
+      this.stateMachine.setState(ReelState.STOPPING);
     }
   }
 
-  private removeBlurEffect() {
-    this.symbols
-      .filter((node) => node?.isValid)
-      .forEach((node) => {
-        node.getComponent(Symbol)?.loadNormalSprite();
-      });
+  public reset(): void {
+    this.animator.stopAllTweens();
+
+    this.stateMachine.reset();
+    this.physics.reset();
+    this.effectManager.reset();
+    this.animator.resetContainerPosition();
+
+    this.resetSpinState();
   }
 
   update(deltaTime: number) {
-    if (
-      this.currentState === ReelState.IDLE ||
-      this.currentState === ReelState.RESULT
-    ) {
+    if (!this.stateMachine.isSpinning()) {
       return;
     }
 
-    switch (this.currentState) {
-      case ReelState.SPINNING_ACCEL:
-        this.currentSpeed +=
-          this.ACCELERATION * this.speedMultiplier * deltaTime;
-        if (this.currentSpeed >= this.MAX_SPEED) {
-          this.currentSpeed = this.MAX_SPEED;
-          this.currentState = ReelState.SPINNING_CONST;
+    const currentState = this.stateMachine.getCurrentState();
+    let shouldUpdatePositions = true;
 
-          if (!this.isBlurred) {
-            this.symbols
-              .filter((node) => node?.isValid)
-              .forEach((node) => {
-                node.getComponent(Symbol)?.loadBlurredSprite();
-              });
-            this.isBlurred = true;
-          }
-        }
+    switch (currentState) {
+      case ReelState.SPINNING_ACCEL:
+        this.handleAccelerationState(deltaTime);
         break;
 
       case ReelState.SPINNING_CONST:
-        if (this.isStopRequested) {
-          this.currentState = ReelState.STOPPING;
-        }
+        this.handleConstantSpeedState();
         break;
 
       case ReelState.STOPPING:
-        this.currentSpeed -= this.DECELERATION * deltaTime;
-        if (this.currentSpeed <= this.MIN_STOP_SPEED) {
-          this.currentSpeed = this.MIN_STOP_SPEED;
-
-          if (this.isBlurred) {
-            this.removeBlurEffect();
-            this.isBlurred = false;
-          }
-
-          if (this.shouldSnapToTarget()) {
-            this.snapToTargetSymbol();
-            return;
-          }
-        }
+        shouldUpdatePositions = !this.handleStoppingState(deltaTime);
         break;
     }
 
-    this.updateSymbols(deltaTime);
-  }
-
-  private updateSymbols(deltaTime: number) {
-    if (this.symbols.length === 0) return;
-
-    const scrollDistance = this.currentSpeed * deltaTime;
-
-    this.symbols
-      .filter((node) => node?.isValid)
-      .forEach((node) => {
-        const newY = node.position.y - scrollDistance;
-
-        if (newY < this.RESET_Y_THRESHOLD) {
-          const highestY = this.getHighestSymbolY();
-          const resetY = highestY + this.getSymbolSpacing();
-
-          this.setNodeYPosition(node, resetY);
-
-          const symbolComp = node.getComponent(Symbol);
-          if (symbolComp) {
-            symbolComp.symbolID = getRandomSymbolID();
-            if (this.isBlurred) {
-              symbolComp.loadBlurredSprite();
-            }
-          }
-        } else {
-          this.setNodeYPosition(node, newY);
-        }
-      });
-  }
-
-  private getHighestSymbolY(): number {
-    return this.symbols
-      .filter((node) => node?.isValid)
-      .reduce(
-        (highest, node) => Math.max(highest, node.position.y),
-        this.RESET_Y_THRESHOLD
+    if (shouldUpdatePositions) {
+      const scrollDistance = this.physics.calculateScrollDistance(deltaTime);
+      this.positionManager.updatePositions(
+        scrollDistance,
+        this.effectManager.isCurrentlyBlurred()
       );
+    }
   }
 
-  private getSymbolSpacing(): number {
-    return this.symbolContainer?.symbolSpacing ?? 115;
+  private handleAccelerationState(deltaTime: number): void {
+    this.physics.accelerate(deltaTime);
+
+    if (this.physics.hasReachedMaxSpeed()) {
+      this.stateMachine.setState(ReelState.SPINNING_CONST);
+      this.effectManager.applyBlur();
+    }
   }
 
-  private setNodeYPosition(node: Node, newY: number) {
-    this.tempPos.set(node.position);
-    this.tempPos.y = newY;
-    node.setPosition(this.tempPos);
+  private handleConstantSpeedState(): void {
+    if (this.isStopRequested) {
+      this.stateMachine.setState(ReelState.STOPPING);
+    }
+  }
+
+  private handleStoppingState(deltaTime: number): boolean {
+    this.physics.decelerate(deltaTime);
+
+    if (this.physics.hasReachedMinSpeed()) {
+      this.effectManager.removeBlur();
+
+      if (this.targetSymbolID >= 0 && !this.targetSymbolNode) {
+        this.targetSymbolNode = this.positionManager.findClosestSymbolWithID(
+          this.targetSymbolID
+        );
+      }
+
+      if (this.shouldSnapToTarget()) {
+        this.performSnapToTarget();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private performSnapToTarget(): void {
+    if (!this.targetSymbolNode) return;
+
+    this.physics.reset();
+    this.stateMachine.setState(ReelState.RESULT);
+
+    this.positionManager.snapAllToTarget(this.targetSymbolNode);
+    this.animator.playBounceEffect(() => {
+      this.onStopComplete();
+    });
+  }
+
+  private canSpin(): boolean {
+    return (
+      this.stateMachine.canSpin() &&
+      this.symbolContainer != null &&
+      this.symbols.length > 0
+    );
   }
 
   private shouldSnapToTarget(): boolean {
-    if (this.targetSymbolID < 0) return false;
-
-    this.targetSymbolNode = this.findClosestSymbolWithID(this.targetSymbolID);
-    return this.targetSymbolNode !== null;
+    return (
+      this.physics.hasReachedMinSpeed() &&
+      this.targetSymbolID >= 0 &&
+      this.targetSymbolNode !== null
+    );
   }
 
-  private findClosestSymbolWithID(symbolID: number): Node | null {
-    let closestNode: Node | null = null;
-    let closestDistance = Infinity;
-
-    for (const node of this.symbols) {
-      if (!node?.isValid) continue;
-
-      const symbolComp = node.getComponent(Symbol);
-      if (symbolComp && symbolComp.symbolID === symbolID) {
-        const distance = Math.abs(node.position.y);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestNode = node;
-        }
-      }
-    }
-
-    if (!closestNode) {
-      const topSymbol = this.symbols
-        .filter((n) => n?.isValid)
-        .sort((a, b) => b.position.y - a.position.y)[0];
-
-      if (topSymbol) {
-        const symbolComp = topSymbol.getComponent(Symbol);
-        if (symbolComp) {
-          symbolComp.symbolID = symbolID;
-          closestNode = topSymbol;
-        }
-      }
-    }
-
-    return closestNode;
+  private resetSpinState(): void {
+    this.targetSymbolID = -1;
+    this.isStopRequested = false;
+    this.targetSymbolNode = null;
   }
 
-  private snapToTargetSymbol() {
-    if (!this.targetSymbolNode) return;
-
-    this.currentSpeed = 0;
-    this.currentState = ReelState.RESULT;
-
-    const currentY = this.targetSymbolNode.position.y;
-    const targetY = 0;
-    const offset = targetY - currentY;
-
-    this.symbols
-      .filter((node) => node?.isValid)
-      .forEach((node) => {
-        const newY = node.position.y + offset;
-        this.setNodeYPosition(node, newY);
-      });
-
-    this.applyBounceEffect();
-  }
-
-  private applyBounceEffect() {
-    if (!this.symbolContainer?.node) return;
-
-    this.stopActiveTween();
-
-    const containerNode = this.symbolContainer.node;
-    const originalY = containerNode.position.y;
-    const bounceY = originalY + this.BOUNCE_DISTANCE;
-
-    this.activeTween = tween(containerNode)
-      .to(this.BOUNCE_DURATION * 0.5, {
-        position: new Vec3(
-          containerNode.position.x,
-          bounceY,
-          containerNode.position.z
-        ),
-      })
-      .to(
-        this.BOUNCE_DURATION * 0.5,
-        {
-          position: new Vec3(
-            containerNode.position.x,
-            originalY,
-            containerNode.position.z
-          ),
-        },
-        { easing: "backOut" }
-      )
-      .call(() => {
-        this.onStopComplete();
-      })
-      .start();
-  }
-
-  private onStopComplete() {
+  private onStopComplete(): void {
     if (this.stopCallback) {
       const callback = this.stopCallback;
       this.stopCallback = null;
@@ -301,36 +217,8 @@ export class Reel extends Component {
     }
   }
 
-  private stopActiveTween() {
-    if (this.activeTween) {
-      this.activeTween.stop();
-      this.activeTween = null;
-    }
-  }
-
-  reset() {
-    this.stopActiveTween();
-
-    this.currentState = ReelState.IDLE;
-    this.currentSpeed = 0;
-    this.targetSymbolID = -1;
-    this.stopCallback = null;
-    this.isStopRequested = false;
-    this.targetSymbolNode = null;
-
-    if (this.isBlurred) {
-      this.removeBlurEffect();
-      this.isBlurred = false;
-    }
-
-    if (this.symbolContainer?.node) {
-      const node = this.symbolContainer.node;
-      node.setPosition(node.position.x, 0, node.position.z);
-    }
-  }
-
   onDestroy() {
-    this.stopActiveTween();
+    this.animator.cleanup();
     this.stopCallback = null;
   }
 }

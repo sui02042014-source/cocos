@@ -1,5 +1,4 @@
 import { _decorator, Component, resources, Sprite, SpriteFrame } from "cc";
-import { SYMBOL_CONFIGS } from "../configs/symbolConfigs";
 import { getSymbolConfig } from "../utils/utils";
 
 const { ccclass } = _decorator;
