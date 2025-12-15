@@ -82,7 +82,6 @@ export class SymbolPositionManager {
       }
     }
 
-    // If not found, assign to top symbol
     if (!closestNode) {
       closestNode = this.assignIDToTopSymbol(symbolID);
     }

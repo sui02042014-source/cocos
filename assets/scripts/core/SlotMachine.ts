@@ -36,7 +36,7 @@ export class SlotMachine extends Component {
   }
 
   private onSpinButtonClicked() {
-    if (!this.reelGroup?.isSpinning()) {
+    if (!this.reelGroup?.getIsSpinning()) {
       this.startSpin();
     }
   }
@@ -87,7 +87,7 @@ export class SlotMachine extends Component {
   }
 
   public isSpinning(): boolean {
-    return this.reelGroup?.isSpinning() ?? false;
+    return this.reelGroup?.getIsSpinning() ?? false;
   }
 
   public reset() {

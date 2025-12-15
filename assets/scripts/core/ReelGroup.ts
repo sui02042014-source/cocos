@@ -12,66 +12,61 @@ export class ReelGroup extends Component {
   stopDelay: number = 0.3;
 
   private reels: Reel[] = [];
-  private _isSpinning: boolean = false;
-  private stoppedReelsCount: number = 0;
+  private isSpinning: boolean = false;
+  private reelsStoppedCount: number = 0;
   private stopCallback: (() => void) | null = null;
 
-  isSpinning(): boolean {
-    return this._isSpinning;
+  public getIsSpinning(): boolean {
+    return this.isSpinning;
   }
 
   start() {
-    this.initializeReels();
-  }
-
-  private initializeReels() {
     this.reels = this.reelNodes
       .filter((node) => node !== null)
       .map((node) => node.getComponent(Reel))
-      .filter((reel) => reel !== null);
+      .filter((reel) => reel !== null) as Reel[];
   }
 
-  spin() {
-    if (this._isSpinning || this.reels.length === 0) return;
+  public spin(): boolean {
+    if (this.isSpinning || this.reels.length === 0) {
+      return false;
+    }
 
-    this._isSpinning = true;
-    this.stoppedReelsCount = 0;
+    this.isSpinning = true;
+    this.reelsStoppedCount = 0;
     this.reels.forEach((reel) => reel.spin());
+
+    return true;
   }
 
-  public stop(targetSymbols: number[], callback?: () => void) {
-    if (!this._isSpinning) return;
+  public stop(targetSymbols: number[], callback?: () => void): void {
+    if (!this.isSpinning) return;
 
     this.stopCallback = callback || null;
-    this.stoppedReelsCount = 0;
+    this.reelsStoppedCount = 0;
 
-    const symbols = this.normalizeTargetSymbols([1, 2, 3]);
+    const normalizedSymbols = this.normalizeTargetSymbols(targetSymbols);
 
     this.reels.forEach((reel, index) => {
       const delay = index * this.stopDelay;
       this.scheduleOnce(() => {
-        reel.stop(symbols[index], () => this.onReelStopped());
+        reel.stop(normalizedSymbols[index], () => this.onReelStopped());
       }, delay);
     });
   }
 
   private normalizeTargetSymbols(targetSymbols: number[]): number[] {
-    const result: number[] = [];
-    for (let i = 0; i < this.reels.length; i++) {
-      if (i < targetSymbols.length && targetSymbols[i] >= 0) {
-        result.push(targetSymbols[i]);
-      } else {
-        result.push(getRandomSymbolID());
-      }
-    }
-    return result;
+    return Array.from(
+      { length: this.reels.length },
+      (_, i) => targetSymbols[i] ?? getRandomSymbolID()
+    );
   }
 
-  private onReelStopped() {
-    this.stoppedReelsCount++;
+  private onReelStopped(): void {
+    this.reelsStoppedCount++;
 
-    if (this.stoppedReelsCount >= this.reels.length) {
-      this._isSpinning = false;
+    if (this.reelsStoppedCount >= this.reels.length) {
+      this.isSpinning = false;
 
       if (this.stopCallback) {
         const callback = this.stopCallback;
@@ -81,11 +76,17 @@ export class ReelGroup extends Component {
     }
   }
 
-  reset() {
+  public reset(): void {
     this.unscheduleAllCallbacks();
-    this._isSpinning = false;
-    this.stoppedReelsCount = 0;
+
+    this.isSpinning = false;
+    this.reelsStoppedCount = 0;
     this.stopCallback = null;
+
     this.reels.forEach((reel) => reel.reset());
+  }
+
+  onDestroy(): void {
+    this.reset();
   }
 }
