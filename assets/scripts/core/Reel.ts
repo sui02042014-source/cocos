@@ -88,14 +88,6 @@ export class Reel extends Component {
     }
   }
 
-  private applyBlurEffect() {
-    this.symbols
-      .filter((node) => node?.isValid)
-      .forEach((node) => {
-        node.getComponent(Symbol)?.loadBlurredSprite();
-      });
-  }
-
   private removeBlurEffect() {
     this.symbols
       .filter((node) => node?.isValid)
@@ -121,7 +113,11 @@ export class Reel extends Component {
           this.currentState = ReelState.SPINNING_CONST;
 
           if (!this.isBlurred) {
-            this.applyBlurEffect();
+            this.symbols
+              .filter((node) => node?.isValid)
+              .forEach((node) => {
+                node.getComponent(Symbol)?.loadBlurredSprite();
+              });
             this.isBlurred = true;
           }
         }

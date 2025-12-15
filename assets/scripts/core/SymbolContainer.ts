@@ -44,6 +44,16 @@ export class SymbolContainer extends Component {
   }
 
   initializeSymbolPositions() {
+    const shuffledNodes = [...this.symbolNodes];
+    for (let i = shuffledNodes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledNodes[i], shuffledNodes[j]] = [
+        shuffledNodes[j],
+        shuffledNodes[i],
+      ];
+    }
+    this.symbolNodes = shuffledNodes;
+
     const centerIndex = Math.floor(this.symbolNodes.length / 2);
     const positions = this.symbolNodes.map(
       (_, i) => (centerIndex - i) * this.symbolSpacing
